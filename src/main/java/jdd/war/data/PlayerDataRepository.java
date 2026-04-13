@@ -18,7 +18,7 @@ public final class PlayerDataRepository {
     }
 
     public Optional<PlayerData> findByUuid(UUID uuid) {
-        String sql = "SELECT uuid, name, kills, deaths FROM player_data WHERE uuid = ?";
+        String sql = "SELECT uuid, name, kills, deaths FROM war_data WHERE uuid = ?";
         if (!databaseManager.isAvailable()) {
             return Optional.empty();
         }
@@ -55,7 +55,7 @@ public final class PlayerDataRepository {
     }
 
     public boolean upsert(PlayerData data) {
-        String sql = "INSERT INTO player_data (uuid, name, kills, deaths) VALUES (?, ?, ?, ?) "
+        String sql = "INSERT INTO war_data (uuid, name, kills, deaths) VALUES (?, ?, ?, ?) "
                 + "ON DUPLICATE KEY UPDATE name = VALUES(name), kills = VALUES(kills), deaths = VALUES(deaths)";
         if (!databaseManager.isAvailable()) {
             return false;
@@ -76,7 +76,7 @@ public final class PlayerDataRepository {
     }
 
     public boolean updateName(UUID uuid, String name) {
-        String sql = "UPDATE player_data SET name = ? WHERE uuid = ?";
+        String sql = "UPDATE war_data SET name = ? WHERE uuid = ?";
         if (!databaseManager.isAvailable()) {
             return false;
         }

@@ -51,19 +51,19 @@ public final class DatabaseManager {
     }
 
     private void createTables() {
-        String sql = "CREATE TABLE IF NOT EXISTS player_data ("
+        String sql = "CREATE TABLE IF NOT EXISTS war_data ("
                 + "uuid VARCHAR(36) PRIMARY KEY,"
                 + "name VARCHAR(16) NOT NULL,"
                 + "kills INT NOT NULL DEFAULT 0,"
                 + "deaths INT NOT NULL DEFAULT 0,"
                 + "created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,"
-                + "updated_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP"
+                + "updated_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP"
                 + ")";
         try (Connection connection = getConnection();
              PreparedStatement statement = connection.prepareStatement(sql)) {
             statement.executeUpdate();
         } catch (SQLException exception) {
-            plugin.getLogger().severe("创建 player_data 表失败: " + exception.getMessage());
+            plugin.getLogger().severe("创建 war_data 表失败: " + exception.getMessage());
         }
     }
 

@@ -39,5 +39,11 @@ public enum HeroClass {
     SACRED_WAR,
     WINDWALKER,
     HOMELANDER,
+    TIDE,
+    PRISM,
+    GEOMANCER,
+    RIFT,
+    FROSTMARK,
+    RAZOR,
     OP_CLASS
 }

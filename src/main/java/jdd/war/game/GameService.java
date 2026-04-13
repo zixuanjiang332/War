@@ -31,8 +31,6 @@ import org.bukkit.inventory.ItemStack;
 public final class GameService {
     private static final double SAFE_ZONE_RADIUS_SQUARED = 15.0D * 15.0D;
     private static final long COMBAT_TAG_MILLIS = 10_000L;
-    private static final String BRAND_PREFIX = "§9§l[职业战争] §f";
-
     private final War plugin;
     private final PluginConfigManager pluginConfigManager;
     private final MapManager mapManager;
@@ -109,14 +107,14 @@ public final class GameService {
         player.setFoodLevel(20);
         restoreFullHealth(player);
         heroService.giveLobbyItems(player);
-        player.sendMessage(BRAND_PREFIX + "已返回大厅。");
+        player.sendMessage(Branding.PREFIX + "已返回大厅。");
         refreshAllUi();
     }
 
     public boolean joinBrawl(Player player) {
         Location spawnLocation = mapManager.getSpawnLocation();
         if (spawnLocation == null) {
-            player.sendMessage(BRAND_PREFIX + "当前没有可用战场。");
+            player.sendMessage(Branding.PREFIX + "当前没有可用战场。");
             return false;
         }
 
@@ -135,7 +133,7 @@ public final class GameService {
         player.setFoodLevel(20);
         restoreFullHealth(player);
         heroService.giveHeroSelectorItem(player);
-        player.sendMessage(BRAND_PREFIX + "已进入战场，请选择职业。");
+        player.sendMessage(Branding.PREFIX + "已进入战场，请选择职业。");
         refreshAllUi();
         return true;
     }
@@ -198,11 +196,11 @@ public final class GameService {
 
     public void selectHero(Player player, HeroClass heroClass) {
         if (!isParticipant(player)) {
-            player.sendMessage(BRAND_PREFIX + "你当前不在职业战争中。");
+            player.sendMessage(Branding.PREFIX + "你当前不在职业战争中。");
             return;
         }
         if (heroClass == HeroClass.OP_CLASS && !player.isOp()) {
-            player.sendMessage(BRAND_PREFIX + "这个职业仅限 OP 使用。");
+            player.sendMessage(Branding.PREFIX + "这个职业仅限 OP 使用。");
             return;
         }
 
@@ -214,7 +212,7 @@ public final class GameService {
         session.setState(PlayerState.IN_BRAWL);
         session.clearFallProtection();
 
-        player.sendMessage(BRAND_PREFIX + "已选择职业：§b" + heroService.getHeroName(heroClass));
+        player.sendMessage(Branding.PREFIX + "已选择职业：§b" + heroService.getHeroName(heroClass));
         refreshAllUi();
     }
 
@@ -241,7 +239,7 @@ public final class GameService {
 
         heroService.clearHero(player);
         heroService.giveHeroSelectorItem(player);
-        player.sendMessage(BRAND_PREFIX + "请选择新的职业。");
+        player.sendMessage(Branding.PREFIX + "请选择新的职业。");
 
         Bukkit.getScheduler().runTaskLater(plugin, () -> {
             if (player.isOnline() && isParticipant(player) && isInSafeZone(player)) {
@@ -298,7 +296,7 @@ public final class GameService {
             if (killer != null && killer.isOnline()) {
                 playerDataService.addKill(killer);
                 rewardKiller(killer);
-                killer.sendMessage(BRAND_PREFIX + player.getName() + " 在战斗中离开，击杀已计入。");
+                killer.sendMessage(Branding.PREFIX + player.getName() + " 在战斗中离开，击杀已计入。");
             }
             playerDataService.addDeath(player);
         }
@@ -409,7 +407,7 @@ public final class GameService {
             heroService.clearHero(player);
             player.teleport(spawnLocation);
             heroService.giveHeroSelectorItem(player);
-            player.sendMessage(BRAND_PREFIX + "地图已轮换至 §b" + mapName + "§f，请重新选择职业。");
+            player.sendMessage(Branding.PREFIX + "地图已轮换至 §b" + mapName + "§f，请重新选择职业。");
 
             Bukkit.getScheduler().runTaskLater(plugin, () -> {
                 if (player.isOnline() && isParticipant(player) && isInSafeZone(player)) {
@@ -445,6 +443,21 @@ public final class GameService {
         if (heroSkillHandler != null) {
             heroSkillHandler.clearPlayerState(player);
         }
+    }
+
+    public long getRemainingCooldownMillis(Player player, String key) {
+        long now = System.currentTimeMillis();
+        long expireAt = getOrCreateSession(player).getCooldown(key);
+        return Math.max(0L, expireAt - now);
+    }
+
+    public long tryUseCooldown(Player player, String key, long cooldownMillis) {
+        long remaining = getRemainingCooldownMillis(player, key);
+        if (remaining > 0L) {
+            return remaining;
+        }
+        getOrCreateSession(player).setCooldown(key, System.currentTimeMillis() + cooldownMillis);
+        return 0L;
     }
 
     private void restoreFullHealth(Player player) {

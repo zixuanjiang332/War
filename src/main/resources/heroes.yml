@@ -1,0 +1,118 @@
+heroes:
+  claw:
+    claw_web:
+      cooldown-seconds: 12
+  destroyer:
+    destroyer_blast:
+      cooldown-seconds: 16
+      radius: 4.5
+      damage: 6.0
+  summoner:
+    summoner_golem:
+      cooldown-seconds: 24
+  inferno_guard:
+    inferno_hounds:
+      cooldown-seconds: 28
+      count: 3
+  thug:
+    thug_burst:
+      cooldown-seconds: 14
+      range: 8.0
+      damage: 7.0
+  phantom:
+    phantom_flight:
+      cooldown-seconds: 20
+      duration-seconds: 4.0
+  shackle:
+    shackle_bell:
+      cooldown-seconds: 18
+      radius: 6.0
+      duration-seconds: 3.0
+      amplifier: 4
+  cavalry:
+    cavalry_horse:
+      cooldown-seconds: 20
+  achilles:
+    achilles_leap:
+      cooldown-seconds: 12
+      horizontal-strength: 1.35
+      vertical-strength: 0.9
+  dragon_breath:
+    dragon_breath:
+      cooldown-seconds: 20
+      radius: 3.5
+      damage: 7.0
+      fire-seconds: 5.0
+  asura:
+    asura_step:
+      cooldown-seconds: 16
+      range: 12.0
+  toxic_lizard:
+    toxic_wave:
+      cooldown-seconds: 16
+      duration-seconds: 5.0
+      amplifier: 0
+  sacred_war:
+    sacred_war_guard:
+      cooldown-seconds: 15
+      absorption: 4.0
+  windwalker:
+    windwalker_rise:
+      cooldown-seconds: 30
+      radius: 3.0
+      damage: 3.0
+      vertical-velocity: 1.0
+      slow-falling-seconds: 2.0
+    windwalker_dash:
+      cooldown-seconds: 30
+      radius: 3.0
+      damage: 3.0
+      horizontal-velocity: 1.6
+      vertical-velocity: 0.2
+      impact-delay-ticks: 6
+  homelander:
+    homelander_flight:
+      cooldown-seconds: 30
+      duration-seconds: 8.0
+  tide:
+    tide_pull:
+      cooldown-seconds: 22
+      range: 5.0
+      damage: 3.0
+      pull-strength: 1.15
+      slow-seconds: 2.0
+      slow-amplifier: 1
+  prism:
+    prism_stance:
+      cooldown-seconds: 28
+      duration-seconds: 4.0
+      retaliation-damage: 4.0
+  geomancer:
+    geomancer_quake:
+      cooldown-seconds: 20
+      range: 5.0
+      delay-seconds: 1.2
+      radius: 3.5
+      damage: 4.0
+      launch-y: 0.55
+  rift:
+    rift_anchor:
+      cooldown-seconds: 30
+      anchor-seconds: 6.0
+      heal: 4.0
+  frostmark:
+    frostmark_breath:
+      cooldown-seconds: 18
+      range: 5.0
+      damage: 2.0
+      cone-dot: 0.45
+      slow-seconds: 2.5
+      slow-amplifier: 2
+  razor:
+    razor_dash:
+      cooldown-seconds: 25
+      distance: 6.0
+      velocity: 1.8
+      damage: 5.0
+      weakness-seconds: 3.0
+      weakness-amplifier: 0

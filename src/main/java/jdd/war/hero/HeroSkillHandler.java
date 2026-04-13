@@ -7,8 +7,8 @@ import java.util.Map;
 import java.util.UUID;
 import java.util.concurrent.ConcurrentHashMap;
 import jdd.war.War;
+import jdd.war.game.Branding;
 import jdd.war.game.GameService;
-import jdd.war.game.PlayerSession;
 import org.bukkit.Bukkit;
 import org.bukkit.GameMode;
 import org.bukkit.Location;
@@ -40,6 +40,7 @@ import org.bukkit.metadata.FixedMetadataValue;
 import org.bukkit.potion.PotionEffect;
 import org.bukkit.potion.PotionEffectType;
 import org.bukkit.scheduler.BukkitTask;
+import org.bukkit.util.RayTraceResult;
 import org.bukkit.util.Vector;
 
 public final class HeroSkillHandler {
@@ -48,13 +49,17 @@ public final class HeroSkillHandler {
 
     private final War plugin;
     private final GameService gameService;
+    private final HeroSkillConfig skillConfig;
+    private final HeroStateTracker stateTracker;
     private final Map<UUID, ProjectileSkill> projectileSkills = new ConcurrentHashMap<>();
     private final Map<UUID, List<UUID>> summonedEntities = new ConcurrentHashMap<>();
     private final Map<UUID, BukkitTask> flightTasks = new ConcurrentHashMap<>();
 
-    public HeroSkillHandler(War plugin, GameService gameService) {
+    public HeroSkillHandler(War plugin, GameService gameService, HeroSkillConfig skillConfig) {
         this.plugin = plugin;
         this.gameService = gameService;
+        this.skillConfig = skillConfig;
+        this.stateTracker = new HeroStateTracker(plugin);
     }
 
     public void handleInteract(PlayerInteractEvent event) {
@@ -90,6 +95,12 @@ public final class HeroSkillHandler {
             case SACRED_WAR -> handleSacredWar(event, player, item);
             case WINDWALKER -> handleWindwalker(event, player, item);
             case HOMELANDER -> handleHomelander(event, player, item);
+            case TIDE -> handleTide(event, player, item);
+            case PRISM -> handlePrism(event, player, item);
+            case GEOMANCER -> handleGeomancer(event, player, item);
+            case RIFT -> handleRift(event, player, item);
+            case FROSTMARK -> handleFrostmark(event, player, item);
+            case RAZOR -> handleRazor(event, player, item);
             default -> {
             }
         }
@@ -122,7 +133,7 @@ public final class HeroSkillHandler {
         if (gameService.getSelectedHero(player) != HeroClass.BIRDMAN || !(event.getProjectile() instanceof Arrow arrow)) {
             return;
         }
-        if (onCooldown(player, "birdman_dash", 10_000L)) {
+        if (onCooldown(player, "birdman_dash", 10_000L, "风羽")) {
             return;
         }
 
@@ -174,13 +185,31 @@ public final class HeroSkillHandler {
     }
 
     public void handleDamageByPlayer(EntityDamageByEntityEvent event) {
+        if (event.getEntity() instanceof Player victim
+                && gameService.isParticipant(victim)
+                && gameService.getSelectedHero(victim) == HeroClass.PRISM
+                && isInterceptableProjectile(event.getDamager())
+                && stateTracker.consumePrism(victim)) {
+            event.setCancelled(true);
+            if (event.getDamager() instanceof Projectile projectile) {
+                if (projectile.getShooter() instanceof Player attacker && !gameService.isInSafeZone(attacker)) {
+                    double damage = skillConfig.value(HeroClass.PRISM, "prism_stance", "retaliation-damage", 4.0D);
+                    attacker.damage(damage, victim);
+                }
+                projectile.remove();
+            }
+            victim.getWorld().spawnParticle(Particle.ENCHANT, victim.getLocation().add(0.0D, 1.0D, 0.0D), 18, 0.5D, 0.7D, 0.5D, 0.01D);
+            victim.playSound(victim.getLocation(), Sound.BLOCK_AMETHYST_CLUSTER_BREAK, 1.0F, 1.2F);
+            return;
+        }
+
         if (!(event.getDamager() instanceof Player player) || !gameService.isParticipant(player) || gameService.isInSafeZone(player)) {
             return;
         }
         if (gameService.getSelectedHero(player) != HeroClass.THOR || player.getInventory().getItemInMainHand().getType() != Material.WOODEN_AXE) {
             return;
         }
-        if (onCooldown(player, "thor_lightning", 14_000L)) {
+        if (onCooldown(player, "thor_lightning", 14_000L, "雷斧")) {
             return;
         }
 
@@ -218,6 +247,7 @@ public final class HeroSkillHandler {
     }
 
     public void clearPlayerState(Player player) {
+        stateTracker.clearPlayerState(player);
         clearFlight(player);
         clearSummons(player);
         projectileSkills.entrySet().removeIf(entry -> {
@@ -231,7 +261,7 @@ public final class HeroSkillHandler {
             return;
         }
         event.setCancelled(true);
-        if (onCooldown(player, "claw_web", 12_000L)) {
+        if (onCooldown(player, "claw_web", skillConfig.cooldownMillis(HeroClass.CLAW, "claw_web", 12.0D), "蛛猎技能")) {
             return;
         }
         Snowball snowball = player.launchProjectile(Snowball.class);
@@ -245,10 +275,14 @@ public final class HeroSkillHandler {
             return;
         }
         event.setCancelled(true);
-        if (onCooldown(player, "destroyer_blast", 16_000L)) {
+        if (onCooldown(player, "destroyer_blast", skillConfig.cooldownMillis(HeroClass.DESTROYER, "destroyer_blast", 16.0D), "爆破头")) {
             return;
         }
-        damageNearbyPlayers(player, 4.5D, 6.0D);
+        damageNearbyPlayers(
+                player,
+                skillConfig.value(HeroClass.DESTROYER, "destroyer_blast", "radius", 4.5D),
+                skillConfig.value(HeroClass.DESTROYER, "destroyer_blast", "damage", 6.0D)
+        );
         player.getWorld().spawnParticle(Particle.EXPLOSION, player.getLocation(), 2, 0.4D, 0.2D, 0.4D, 0.0D);
         player.playSound(player.getLocation(), Sound.ENTITY_GENERIC_EXPLODE, 0.9F, 1.0F);
     }
@@ -258,7 +292,7 @@ public final class HeroSkillHandler {
             return;
         }
         event.setCancelled(true);
-        if (onCooldown(player, "summoner_golem", 24_000L)) {
+        if (onCooldown(player, "summoner_golem", skillConfig.cooldownMillis(HeroClass.SUMMONER, "summoner_golem", 24.0D), "召铁")) {
             return;
         }
         clearSummons(player);
@@ -274,11 +308,12 @@ public final class HeroSkillHandler {
             return;
         }
         event.setCancelled(true);
-        if (onCooldown(player, "inferno_hounds", 28_000L)) {
+        if (onCooldown(player, "inferno_hounds", skillConfig.cooldownMillis(HeroClass.INFERNO_GUARD, "inferno_hounds", 28.0D), "炎狼")) {
             return;
         }
         clearSummons(player);
-        for (int i = 0; i < 3; i++) {
+        int count = skillConfig.intValue(HeroClass.INFERNO_GUARD, "inferno_hounds", "count", 3);
+        for (int i = 0; i < count; i++) {
             Wolf wolf = player.getWorld().spawn(player.getLocation(), Wolf.class);
             wolf.setOwner(player);
             wolf.setCustomName("地狱猎犬");
@@ -294,15 +329,15 @@ public final class HeroSkillHandler {
             return;
         }
         event.setCancelled(true);
-        Player target = findNearestTarget(player, 8.0D);
+        Player target = findNearestTarget(player, skillConfig.value(HeroClass.THUG, "thug_burst", "range", 8.0D));
         if (target == null) {
             return;
         }
-        if (onCooldown(player, "thug_burst", 14_000L)) {
+        if (onCooldown(player, "thug_burst", skillConfig.cooldownMillis(HeroClass.THUG, "thug_burst", 14.0D), "熔拳")) {
             return;
         }
         target.getWorld().spawnParticle(Particle.LAVA, target.getLocation().add(0.0D, 1.0D, 0.0D), 24, 0.6D, 0.8D, 0.6D, 0.02D);
-        target.damage(7.0D, player);
+        target.damage(skillConfig.value(HeroClass.THUG, "thug_burst", "damage", 7.0D), player);
         player.playSound(player.getLocation(), Sound.BLOCK_LAVA_POP, 1.0F, 1.0F);
     }
 
@@ -311,15 +346,14 @@ public final class HeroSkillHandler {
             return;
         }
         event.setCancelled(true);
-        if (onCooldown(player, "phantom_flight", 20_000L)) {
+        if (onCooldown(player, "phantom_flight", skillConfig.cooldownMillis(HeroClass.PHANTOM, "phantom_flight", 20.0D), "幻行")) {
             return;
         }
         clearFlight(player);
         player.setAllowFlight(true);
         player.setFlying(true);
         player.playSound(player.getLocation(), Sound.ENTITY_PHANTOM_FLAP, 0.8F, 1.2F);
-        BukkitTask task = Bukkit.getScheduler().runTaskLater(plugin, () -> clearFlight(player), 80L);
-        flightTasks.put(player.getUniqueId(), task);
+        startFlight(player, Math.round(skillConfig.value(HeroClass.PHANTOM, "phantom_flight", "duration-seconds", 4.0D) * 20.0D));
     }
 
     private void handleShackle(PlayerInteractEvent event, Player player, ItemStack item) {
@@ -327,12 +361,15 @@ public final class HeroSkillHandler {
             return;
         }
         event.setCancelled(true);
-        if (onCooldown(player, "shackle_bell", 18_000L)) {
+        if (onCooldown(player, "shackle_bell", skillConfig.cooldownMillis(HeroClass.SHACKLE, "shackle_bell", 18.0D), "冰钟")) {
             return;
         }
-        for (Entity entity : player.getNearbyEntities(6.0D, 6.0D, 6.0D)) {
+        double radius = skillConfig.value(HeroClass.SHACKLE, "shackle_bell", "radius", 6.0D);
+        int durationTicks = (int) Math.round(skillConfig.value(HeroClass.SHACKLE, "shackle_bell", "duration-seconds", 3.0D) * 20.0D);
+        int amplifier = skillConfig.intValue(HeroClass.SHACKLE, "shackle_bell", "amplifier", 4);
+        for (Entity entity : player.getNearbyEntities(radius, radius, radius)) {
             if (entity instanceof Player target && !target.equals(player) && !gameService.isInSafeZone(target)) {
-                target.addPotionEffect(new PotionEffect(PotionEffectType.SLOWNESS, 60, 4, false, true));
+                target.addPotionEffect(new PotionEffect(PotionEffectType.SLOWNESS, durationTicks, amplifier, false, true));
             }
         }
         player.playSound(player.getLocation(), Sound.BLOCK_BELL_USE, 1.0F, 0.8F);
@@ -343,7 +380,7 @@ public final class HeroSkillHandler {
             return;
         }
         event.setCancelled(true);
-        if (onCooldown(player, "cavalry_horse", 20_000L)) {
+        if (onCooldown(player, "cavalry_horse", skillConfig.cooldownMillis(HeroClass.CAVALRY, "cavalry_horse", 20.0D), "骑士")) {
             return;
         }
         clearSummons(player);
@@ -363,10 +400,12 @@ public final class HeroSkillHandler {
             return;
         }
         event.setCancelled(true);
-        if (onCooldown(player, "achilles_leap", 12_000L)) {
+        if (onCooldown(player, "achilles_leap", skillConfig.cooldownMillis(HeroClass.ACHILLES, "achilles_leap", 12.0D), "飞焰")) {
             return;
         }
-        Vector launch = player.getLocation().getDirection().normalize().multiply(1.35D).setY(0.9D);
+        Vector launch = player.getLocation().getDirection().normalize()
+                .multiply(skillConfig.value(HeroClass.ACHILLES, "achilles_leap", "horizontal-strength", 1.35D))
+                .setY(skillConfig.value(HeroClass.ACHILLES, "achilles_leap", "vertical-strength", 0.9D));
         player.setVelocity(launch);
         player.setFallDistance(0.0F);
         player.playSound(player.getLocation(), Sound.ENTITY_FIREWORK_ROCKET_LAUNCH, 1.0F, 1.1F);
@@ -377,13 +416,16 @@ public final class HeroSkillHandler {
             return;
         }
         event.setCancelled(true);
-        if (onCooldown(player, "dragon_breath", 20_000L)) {
+        if (onCooldown(player, "dragon_breath", skillConfig.cooldownMillis(HeroClass.DRAGON_BREATH, "dragon_breath", 20.0D), "龙炎")) {
             return;
         }
-        for (Entity entity : player.getNearbyEntities(3.5D, 3.0D, 3.5D)) {
+        double radius = skillConfig.value(HeroClass.DRAGON_BREATH, "dragon_breath", "radius", 3.5D);
+        double damage = skillConfig.value(HeroClass.DRAGON_BREATH, "dragon_breath", "damage", 7.0D);
+        int fireTicks = (int) Math.round(skillConfig.value(HeroClass.DRAGON_BREATH, "dragon_breath", "fire-seconds", 5.0D) * 20.0D);
+        for (Entity entity : player.getNearbyEntities(radius, radius, radius)) {
             if (entity instanceof Player target && !target.equals(player) && !gameService.isInSafeZone(target)) {
-                target.damage(7.0D, player);
-                target.setFireTicks(100);
+                target.damage(damage, player);
+                target.setFireTicks(fireTicks);
             }
         }
         player.playSound(player.getLocation(), Sound.ENTITY_GHAST_SHOOT, 1.0F, 1.0F);
@@ -394,11 +436,11 @@ public final class HeroSkillHandler {
             return;
         }
         event.setCancelled(true);
-        Player target = findRandomTarget(player, 12.0D);
+        Player target = findRandomTarget(player, skillConfig.value(HeroClass.ASURA, "asura_step", "range", 12.0D));
         if (target == null) {
             return;
         }
-        if (onCooldown(player, "asura_step", 16_000L)) {
+        if (onCooldown(player, "asura_step", skillConfig.cooldownMillis(HeroClass.ASURA, "asura_step", 16.0D), "修罗")) {
             return;
         }
         player.teleport(target.getLocation().clone().add(1.0D, 0.0D, 0.0D));
@@ -410,12 +452,14 @@ public final class HeroSkillHandler {
             return;
         }
         event.setCancelled(true);
-        if (onCooldown(player, "toxic_wave", 16_000L)) {
+        if (onCooldown(player, "toxic_wave", skillConfig.cooldownMillis(HeroClass.TOXIC_LIZARD, "toxic_wave", 16.0D), "毒蜥")) {
             return;
         }
+        int durationTicks = (int) Math.round(skillConfig.value(HeroClass.TOXIC_LIZARD, "toxic_wave", "duration-seconds", 5.0D) * 20.0D);
+        int amplifier = skillConfig.intValue(HeroClass.TOXIC_LIZARD, "toxic_wave", "amplifier", 0);
         for (Entity entity : player.getNearbyEntities(DEFAULT_SKILL_RANGE, DEFAULT_SKILL_RANGE, DEFAULT_SKILL_RANGE)) {
             if (entity instanceof Player target && !target.equals(player) && !gameService.isInSafeZone(target)) {
-                target.addPotionEffect(new PotionEffect(PotionEffectType.POISON, 100, 0, false, true));
+                target.addPotionEffect(new PotionEffect(PotionEffectType.POISON, durationTicks, amplifier, false, true));
             }
         }
         player.playSound(player.getLocation(), Sound.ENTITY_SILVERFISH_HURT, 1.0F, 0.8F);
@@ -426,10 +470,11 @@ public final class HeroSkillHandler {
             return;
         }
         event.setCancelled(true);
-        if (onCooldown(player, "sacred_war_guard", 15_000L)) {
+        if (onCooldown(player, "sacred_war_guard", skillConfig.cooldownMillis(HeroClass.SACRED_WAR, "sacred_war_guard", 15.0D), "圣战")) {
             return;
         }
-        player.setAbsorptionAmount(Math.max(player.getAbsorptionAmount(), 4.0D));
+        player.setAbsorptionAmount(Math.max(player.getAbsorptionAmount(),
+                skillConfig.value(HeroClass.SACRED_WAR, "sacred_war_guard", "absorption", 4.0D)));
         player.playSound(player.getLocation(), Sound.ITEM_TOTEM_USE, 0.9F, 1.25F);
         player.playSound(player.getLocation(), Sound.BLOCK_AMETHYST_BLOCK_RESONATE, 0.6F, 1.5F);
     }
@@ -441,32 +486,45 @@ public final class HeroSkillHandler {
 
         if (item.getType() == Material.FEATHER) {
             event.setCancelled(true);
-            if (onCooldown(player, "windwalker_rise", 30_000L)) {
+            if (onCooldown(player, "windwalker_rise", skillConfig.cooldownMillis(HeroClass.WINDWALKER, "windwalker_rise", 30.0D), "风行·升空")) {
                 return;
             }
-            damageNearbyPlayers(player, 3.0D, 3.0D);
-            player.setVelocity(new Vector(0.0D, 1.0D, 0.0D));
+            damageNearbyPlayers(
+                    player,
+                    skillConfig.value(HeroClass.WINDWALKER, "windwalker_rise", "radius", 3.0D),
+                    skillConfig.value(HeroClass.WINDWALKER, "windwalker_rise", "damage", 3.0D)
+            );
+            player.setVelocity(new Vector(0.0D, skillConfig.value(HeroClass.WINDWALKER, "windwalker_rise", "vertical-velocity", 1.0D), 0.0D));
             player.setFallDistance(0.0F);
-            player.addPotionEffect(new PotionEffect(PotionEffectType.SLOW_FALLING, 40, 0, false, false));
+            player.addPotionEffect(new PotionEffect(PotionEffectType.SLOW_FALLING,
+                    (int) Math.round(skillConfig.value(HeroClass.WINDWALKER, "windwalker_rise", "slow-falling-seconds", 2.0D) * 20.0D),
+                    0, false, false));
             player.playSound(player.getLocation(), Sound.ENTITY_BREEZE_WIND_BURST, 1.0F, 1.2F);
             return;
         }
 
         if (item.getType() == Material.SUGAR) {
             event.setCancelled(true);
-            if (onCooldown(player, "windwalker_dash", 30_000L)) {
+            if (onCooldown(player, "windwalker_dash", skillConfig.cooldownMillis(HeroClass.WINDWALKER, "windwalker_dash", 30.0D), "风行·突进")) {
                 return;
             }
-            Vector launch = player.getLocation().getDirection().setY(0.0D).normalize().multiply(1.6D).setY(0.2D);
+            Vector launch = player.getLocation().getDirection().setY(0.0D).normalize()
+                    .multiply(skillConfig.value(HeroClass.WINDWALKER, "windwalker_dash", "horizontal-velocity", 1.6D))
+                    .setY(skillConfig.value(HeroClass.WINDWALKER, "windwalker_dash", "vertical-velocity", 0.2D));
             player.setVelocity(launch);
             player.setFallDistance(0.0F);
             player.playSound(player.getLocation(), Sound.ENTITY_WIND_CHARGE_WIND_BURST, 1.0F, 1.0F);
             Bukkit.getScheduler().runTaskLater(plugin, () -> {
                 if (player.isOnline() && gameService.isParticipant(player)) {
-                    damageNearbyPlayersAt(player, player.getLocation(), 3.0D, 3.0D);
+                    damageNearbyPlayersAt(
+                            player,
+                            player.getLocation(),
+                            skillConfig.value(HeroClass.WINDWALKER, "windwalker_dash", "radius", 3.0D),
+                            skillConfig.value(HeroClass.WINDWALKER, "windwalker_dash", "damage", 3.0D)
+                    );
                     player.getWorld().spawnParticle(Particle.CLOUD, player.getLocation().add(0.0D, 0.5D, 0.0D), 18, 0.5D, 0.2D, 0.5D, 0.02D);
                 }
-            }, 6L);
+            }, Math.round(skillConfig.value(HeroClass.WINDWALKER, "windwalker_dash", "impact-delay-ticks", 6.0D)));
         }
     }
 
@@ -475,7 +533,7 @@ public final class HeroSkillHandler {
             return;
         }
         event.setCancelled(true);
-        if (onCooldown(player, "homelander_flight", 30_000L)) {
+        if (onCooldown(player, "homelander_flight", skillConfig.cooldownMillis(HeroClass.HOMELANDER, "homelander_flight", 30.0D), "祖国人")) {
             return;
         }
         clearFlight(player);
@@ -483,8 +541,187 @@ public final class HeroSkillHandler {
         player.setFlying(true);
         player.setFallDistance(0.0F);
         player.playSound(player.getLocation(), Sound.ENTITY_ENDER_DRAGON_FLAP, 1.0F, 1.2F);
-        BukkitTask task = Bukkit.getScheduler().runTaskLater(plugin, () -> clearFlight(player), 160L);
-        flightTasks.put(player.getUniqueId(), task);
+        startFlight(player, Math.round(skillConfig.value(HeroClass.HOMELANDER, "homelander_flight", "duration-seconds", 8.0D) * 20.0D));
+    }
+
+    private void handleTide(PlayerInteractEvent event, Player player, ItemStack item) {
+        if (!event.getAction().isRightClick() || item.getType() != Material.NAUTILUS_SHELL) {
+            return;
+        }
+        event.setCancelled(true);
+        if (onCooldown(player, "tide_pull", skillConfig.cooldownMillis(HeroClass.TIDE, "tide_pull", 22.0D), "潮汐")) {
+            return;
+        }
+        Player target = findNearestTarget(player, skillConfig.value(HeroClass.TIDE, "tide_pull", "range", 5.0D));
+        if (target == null) {
+            return;
+        }
+        Vector pull = player.getLocation().toVector().subtract(target.getLocation().toVector()).normalize()
+                .multiply(skillConfig.value(HeroClass.TIDE, "tide_pull", "pull-strength", 1.15D));
+        pull.setY(0.25D);
+        target.setVelocity(pull);
+        target.damage(skillConfig.value(HeroClass.TIDE, "tide_pull", "damage", 3.0D), player);
+        target.addPotionEffect(new PotionEffect(
+                PotionEffectType.SLOWNESS,
+                (int) Math.round(skillConfig.value(HeroClass.TIDE, "tide_pull", "slow-seconds", 2.0D) * 20.0D),
+                skillConfig.intValue(HeroClass.TIDE, "tide_pull", "slow-amplifier", 1),
+                false,
+                true
+        ));
+        target.getWorld().spawnParticle(Particle.SPLASH, target.getLocation().add(0.0D, 1.0D, 0.0D), 18, 0.5D, 0.4D, 0.5D, 0.15D);
+        player.playSound(player.getLocation(), Sound.ENTITY_PLAYER_SPLASH, 1.0F, 1.1F);
+    }
+
+    private void handlePrism(PlayerInteractEvent event, Player player, ItemStack item) {
+        if (!event.getAction().isRightClick() || item.getType() != Material.AMETHYST_SHARD) {
+            return;
+        }
+        event.setCancelled(true);
+        if (stateTracker.hasPrism(player)) {
+            return;
+        }
+        if (onCooldown(player, "prism_stance", skillConfig.cooldownMillis(HeroClass.PRISM, "prism_stance", 28.0D), "棱镜")) {
+            return;
+        }
+        stateTracker.activatePrism(player, Math.round(skillConfig.value(HeroClass.PRISM, "prism_stance", "duration-seconds", 4.0D) * 20.0D));
+        player.getWorld().spawnParticle(Particle.ENCHANT, player.getLocation().add(0.0D, 1.0D, 0.0D), 20, 0.6D, 0.8D, 0.6D, 0.01D);
+        player.playSound(player.getLocation(), Sound.BLOCK_AMETHYST_BLOCK_CHIME, 1.0F, 1.3F);
+    }
+
+    private void handleGeomancer(PlayerInteractEvent event, Player player, ItemStack item) {
+        if (!event.getAction().isRightClick() || item.getType() != Material.MAGMA_CREAM) {
+            return;
+        }
+        event.setCancelled(true);
+        if (onCooldown(player, "geomancer_quake", skillConfig.cooldownMillis(HeroClass.GEOMANCER, "geomancer_quake", 20.0D), "地脉")) {
+            return;
+        }
+        Location center = player.getLocation().clone().add(player.getLocation().getDirection().normalize()
+                .multiply(skillConfig.value(HeroClass.GEOMANCER, "geomancer_quake", "range", 5.0D)));
+        center.setY(player.getLocation().getY());
+        Bukkit.getScheduler().runTaskLater(plugin, () -> {
+            if (!player.isOnline() || !gameService.isParticipant(player)) {
+                return;
+            }
+            double radius = skillConfig.value(HeroClass.GEOMANCER, "geomancer_quake", "radius", 3.5D);
+            center.getWorld().spawnParticle(Particle.BLOCK, center, 30, radius / 2.0D, 0.2D, radius / 2.0D, 0.0D, Material.STONE.createBlockData());
+            center.getWorld().playSound(center, Sound.ENTITY_GENERIC_EXPLODE, 0.8F, 0.7F);
+            for (Entity entity : center.getWorld().getNearbyEntities(center, radius, radius, radius)) {
+                if (entity instanceof Player target && !target.equals(player) && !gameService.isInSafeZone(target)) {
+                    target.damage(skillConfig.value(HeroClass.GEOMANCER, "geomancer_quake", "damage", 4.0D), player);
+                    Vector velocity = target.getVelocity();
+                    velocity.setY(Math.max(velocity.getY(), skillConfig.value(HeroClass.GEOMANCER, "geomancer_quake", "launch-y", 0.55D)));
+                    target.setVelocity(velocity);
+                }
+            }
+        }, Math.round(skillConfig.value(HeroClass.GEOMANCER, "geomancer_quake", "delay-seconds", 1.2D) * 20.0D));
+    }
+
+    private void handleRift(PlayerInteractEvent event, Player player, ItemStack item) {
+        if (!event.getAction().isRightClick() || item.getType() != Material.CLOCK) {
+            return;
+        }
+        event.setCancelled(true);
+        if (stateTracker.hasTimeAnchor(player)) {
+            returnToAnchor(player);
+            return;
+        }
+        if (onCooldown(player, "rift_anchor", skillConfig.cooldownMillis(HeroClass.RIFT, "rift_anchor", 30.0D), "时隙")) {
+            return;
+        }
+        stateTracker.setTimeAnchor(player, player.getLocation().clone(),
+                Math.round(skillConfig.value(HeroClass.RIFT, "rift_anchor", "anchor-seconds", 6.0D) * 20.0D),
+                () -> {
+                    if (player.isOnline()) {
+                        returnToAnchor(player);
+                    }
+                });
+        player.sendMessage(Branding.PREFIX + "时隙已记录当前位置。");
+        player.playSound(player.getLocation(), Sound.BLOCK_RESPAWN_ANCHOR_SET_SPAWN, 0.8F, 1.2F);
+    }
+
+    private void handleFrostmark(PlayerInteractEvent event, Player player, ItemStack item) {
+        if (!event.getAction().isRightClick() || item.getType() != Material.SNOWBALL) {
+            return;
+        }
+        event.setCancelled(true);
+        if (onCooldown(player, "frostmark_breath", skillConfig.cooldownMillis(HeroClass.FROSTMARK, "frostmark_breath", 18.0D), "霜痕")) {
+            return;
+        }
+        Vector facing = player.getEyeLocation().getDirection().normalize();
+        Location origin = player.getEyeLocation();
+        double range = skillConfig.value(HeroClass.FROSTMARK, "frostmark_breath", "range", 5.0D);
+        double damage = skillConfig.value(HeroClass.FROSTMARK, "frostmark_breath", "damage", 2.0D);
+        double coneDot = skillConfig.value(HeroClass.FROSTMARK, "frostmark_breath", "cone-dot", 0.45D);
+        int durationTicks = (int) Math.round(skillConfig.value(HeroClass.FROSTMARK, "frostmark_breath", "slow-seconds", 2.5D) * 20.0D);
+        int amplifier = skillConfig.intValue(HeroClass.FROSTMARK, "frostmark_breath", "slow-amplifier", 2);
+        for (Entity entity : player.getNearbyEntities(range, range, range)) {
+            if (!(entity instanceof Player target) || target.equals(player) || gameService.isInSafeZone(target)) {
+                continue;
+            }
+            Vector toTarget = target.getEyeLocation().toVector().subtract(origin.toVector()).normalize();
+            if (facing.dot(toTarget) >= coneDot) {
+                target.damage(damage, player);
+                target.addPotionEffect(new PotionEffect(PotionEffectType.SLOWNESS, durationTicks, amplifier, false, true));
+            }
+        }
+        player.getWorld().spawnParticle(Particle.SNOWFLAKE, player.getEyeLocation(), 30, 1.2D, 0.6D, 1.2D, 0.02D);
+        player.playSound(player.getLocation(), Sound.BLOCK_POWDER_SNOW_BREAK, 0.9F, 1.2F);
+    }
+
+    private void handleRazor(PlayerInteractEvent event, Player player, ItemStack item) {
+        if (!event.getAction().isRightClick() || item.getType() != Material.WHITE_BANNER) {
+            return;
+        }
+        event.setCancelled(true);
+        if (onCooldown(player, "razor_dash", skillConfig.cooldownMillis(HeroClass.RAZOR, "razor_dash", 25.0D), "裂锋")) {
+            return;
+        }
+        Vector direction = player.getLocation().getDirection().setY(0.0D).normalize();
+        player.setVelocity(direction.clone().multiply(skillConfig.value(HeroClass.RAZOR, "razor_dash", "velocity", 1.8D)).setY(0.15D));
+        player.setFallDistance(0.0F);
+        RayTraceResult result = player.getWorld().rayTraceEntities(
+                player.getEyeLocation(),
+                direction,
+                skillConfig.value(HeroClass.RAZOR, "razor_dash", "distance", 6.0D),
+                1.2D,
+                entity -> entity instanceof Player target && !target.equals(player) && !gameService.isInSafeZone(target)
+        );
+        if (result != null && result.getHitEntity() instanceof Player target) {
+            target.damage(skillConfig.value(HeroClass.RAZOR, "razor_dash", "damage", 5.0D), player);
+            target.addPotionEffect(new PotionEffect(
+                    PotionEffectType.WEAKNESS,
+                    (int) Math.round(skillConfig.value(HeroClass.RAZOR, "razor_dash", "weakness-seconds", 3.0D) * 20.0D),
+                    skillConfig.intValue(HeroClass.RAZOR, "razor_dash", "weakness-amplifier", 0),
+                    false,
+                    true
+            ));
+        }
+        player.playSound(player.getLocation(), Sound.ITEM_TRIDENT_RIPTIDE_1, 0.8F, 1.25F);
+    }
+
+    private void returnToAnchor(Player player) {
+        Location anchor = stateTracker.getTimeAnchor(player);
+        stateTracker.clearTimeAnchor(player);
+        if (anchor == null || anchor.getWorld() == null || !player.isOnline()) {
+            return;
+        }
+        if (!anchor.getWorld().equals(player.getWorld()) || !isSafeTeleport(anchor)) {
+            return;
+        }
+        player.teleport(anchor);
+        double max = player.getAttribute(org.bukkit.attribute.Attribute.MAX_HEALTH) != null
+                ? player.getAttribute(org.bukkit.attribute.Attribute.MAX_HEALTH).getValue()
+                : 20.0D;
+        player.setHealth(Math.min(max, player.getHealth() + skillConfig.value(HeroClass.RIFT, "rift_anchor", "heal", 4.0D)));
+        player.playSound(player.getLocation(), Sound.ENTITY_ENDERMAN_TELEPORT, 1.0F, 1.2F);
+    }
+
+    private boolean isSafeTeleport(Location location) {
+        Block feet = location.getBlock();
+        Block head = feet.getRelative(0, 1, 0);
+        Block below = feet.getRelative(0, -1, 0);
+        return feet.isPassable() && head.isPassable() && below.getType().isSolid();
     }
 
     private void useStew(Player player, ItemStack stew, PlayerInteractEvent event) {
@@ -539,17 +776,25 @@ public final class HeroSkillHandler {
         }, 100L);
     }
 
-    private boolean onCooldown(Player player, String key, long cooldownMillis) {
-        PlayerSession session = gameService.getOrCreateSession(player);
-        long now = System.currentTimeMillis();
-        long expireAt = session.getCooldown(key);
-        if (expireAt > now) {
-            long seconds = (expireAt - now + 999L) / 1000L;
-            player.sendMessage("§c技能冷却：还需 " + seconds + " 秒");
+    private boolean onCooldown(Player player, String key, long cooldownMillis, String readyName) {
+        long remaining = gameService.tryUseCooldown(player, key, cooldownMillis);
+        if (remaining > 0L) {
+            long seconds = (remaining + 999L) / 1000L;
+            player.sendMessage(Branding.PREFIX + "技能冷却：§b" + seconds + "§f秒");
             return true;
         }
-        session.setCooldown(key, now + cooldownMillis);
+        stateTracker.scheduleCooldownReady(player, key, readyName, Math.max(1L, cooldownMillis / 50L));
         return false;
+    }
+
+    private boolean isInterceptableProjectile(Entity entity) {
+        if (!(entity instanceof Projectile projectile)) {
+            return false;
+        }
+        return projectile instanceof Arrow
+                || projectile instanceof Snowball
+                || entity.getType().name().contains("FISHING")
+                || entity.getType().name().contains("WIND_CHARGE");
     }
 
     private void damageNearbyPlayers(Player player, double radius, double damage) {
@@ -616,6 +861,12 @@ public final class HeroSkillHandler {
                 entity.remove();
             }
         }
+    }
+
+    private void startFlight(Player player, long durationTicks) {
+        clearFlight(player);
+        BukkitTask task = Bukkit.getScheduler().runTaskLater(plugin, () -> clearFlight(player), durationTicks);
+        flightTasks.put(player.getUniqueId(), task);
     }
 
     private void clearFlight(Player player) {

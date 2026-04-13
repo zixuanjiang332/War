@@ -15,5 +15,7 @@ public interface HeroDefinition {
 
     List<String> getDescription();
 
+    List<HeroSkillBinding> getSkillBindings();
+
     void apply(Player player);
 }

@@ -9,6 +9,7 @@ import jdd.war.game.GameService;
 import jdd.war.game.ScoreboardManager;
 import jdd.war.hero.HeroRegistry;
 import jdd.war.hero.HeroService;
+import jdd.war.hero.HeroSkillConfig;
 import jdd.war.hero.HeroSkillHandler;
 import jdd.war.listener.CombatListener;
 import jdd.war.listener.HeroSkillListener;
@@ -29,11 +30,13 @@ public final class War extends JavaPlugin {
     private HeroRegistry heroRegistry;
     private HeroService heroService;
     private GameService gameService;
+    private HeroSkillConfig heroSkillConfig;
     private HeroSkillHandler heroSkillHandler;
 
     @Override
     public void onEnable() {
         saveDefaultConfig();
+        saveResource("heroes.yml", false);
 
         pluginConfigManager = PluginConfigManager.init(this);
         databaseManager = new DatabaseManager(this);
@@ -45,8 +48,9 @@ public final class War extends JavaPlugin {
         mapManager = new MapManager(this, pluginConfigManager);
         heroRegistry = new HeroRegistry();
         heroService = new HeroService(heroRegistry);
+        heroSkillConfig = new HeroSkillConfig(this);
         gameService = new GameService(this, pluginConfigManager, mapManager, heroService, playerDataService, scoreboardManager);
-        heroSkillHandler = new HeroSkillHandler(this, gameService);
+        heroSkillHandler = new HeroSkillHandler(this, gameService, heroSkillConfig);
 
         gameService.setHeroSkillHandler(heroSkillHandler);
         scoreboardManager.setGameService(gameService);

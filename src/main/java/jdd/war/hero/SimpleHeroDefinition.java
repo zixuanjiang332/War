@@ -11,6 +11,7 @@ public final class SimpleHeroDefinition implements HeroDefinition {
     private final Material menuIcon;
     private final int menuSlot;
     private final List<String> description;
+    private final List<HeroSkillBinding> skillBindings;
     private final Consumer<Player> applicator;
 
     public SimpleHeroDefinition(
@@ -19,6 +20,7 @@ public final class SimpleHeroDefinition implements HeroDefinition {
             Material menuIcon,
             int menuSlot,
             List<String> description,
+            List<HeroSkillBinding> skillBindings,
             Consumer<Player> applicator
     ) {
         this.heroClass = heroClass;
@@ -26,6 +28,7 @@ public final class SimpleHeroDefinition implements HeroDefinition {
         this.menuIcon = menuIcon;
         this.menuSlot = menuSlot;
         this.description = description;
+        this.skillBindings = skillBindings;
         this.applicator = applicator;
     }
 
@@ -52,6 +55,11 @@ public final class SimpleHeroDefinition implements HeroDefinition {
     @Override
     public List<String> getDescription() {
         return description;
+    }
+
+    @Override
+    public List<HeroSkillBinding> getSkillBindings() {
+        return skillBindings;
     }
 
     @Override
