@@ -1,0 +1,11 @@
+name: War
+version: '1.0-SNAPSHOT'
+main: jdd.war.War
+api-version: '1.21'
+description: 职业战争 Paper 插件
+commands:
+  leave:
+    description: 离开职业战争并返回大厅
+    usage: /leave
+libraries:
+  - com.zaxxer:HikariCP:5.1.0
