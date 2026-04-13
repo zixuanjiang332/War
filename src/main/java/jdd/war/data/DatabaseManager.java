@@ -56,8 +56,8 @@ public final class DatabaseManager {
                 + "name VARCHAR(16) NOT NULL,"
                 + "kills INT NOT NULL DEFAULT 0,"
                 + "deaths INT NOT NULL DEFAULT 0,"
-                + "created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,"
-                + "updated_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP"
+                + "created_at DATETIME NOT NULL,"
+                + "updated_at DATETIME NOT NULL"
                 + ")";
         try (Connection connection = getConnection();
              PreparedStatement statement = connection.prepareStatement(sql)) {

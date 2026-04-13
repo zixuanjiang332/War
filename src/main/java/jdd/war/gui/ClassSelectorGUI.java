@@ -21,7 +21,7 @@ public final class ClassSelectorGUI {
     }
 
     public static void open(Player player, HeroRegistry heroRegistry) {
-        Inventory inventory = Bukkit.createInventory(null, 54, Component.text(TITLE).color(NamedTextColor.BLUE).decorate(TextDecoration.BOLD));
+        Inventory inventory = Bukkit.createInventory(new ClassSelectorHolder(), 54, Component.text(TITLE).color(NamedTextColor.BLUE).decorate(TextDecoration.BOLD));
         for (HeroDefinition hero : heroRegistry.getAll()) {
             inventory.setItem(hero.getMenuSlot(), createHeroItem(hero));
         }

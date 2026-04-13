@@ -2,7 +2,9 @@ package jdd.war.listener;
 
 import jdd.war.game.GameService;
 import jdd.war.gui.BrawlMenuGUI;
+import jdd.war.gui.BrawlMenuHolder;
 import jdd.war.gui.ClassSelectorGUI;
+import jdd.war.gui.ClassSelectorHolder;
 import jdd.war.hero.HeroClass;
 import jdd.war.hero.HeroRegistry;
 import jdd.war.hero.HeroService;
@@ -66,25 +68,30 @@ public final class MenuListener implements Listener {
             return;
         }
 
-        String title = event.getView().getTitle();
         ItemStack clicked = event.getCurrentItem();
         if (clicked == null || clicked.getType() == Material.AIR) {
             return;
         }
 
-        if (BrawlMenuGUI.TITLE.equals(title)) {
+        if (event.getView().getTopInventory().getHolder() instanceof BrawlMenuHolder) {
             event.setCancelled(true);
+            if (event.getClickedInventory() != event.getView().getTopInventory()) {
+                return;
+            }
             if (clicked.getType() == Material.DIAMOND_SWORD && gameService.joinBrawl(player)) {
                 player.closeInventory();
             }
             return;
         }
 
-        if (!ClassSelectorGUI.TITLE.equals(title)) {
+        if (!(event.getView().getTopInventory().getHolder() instanceof ClassSelectorHolder)) {
             return;
         }
 
         event.setCancelled(true);
+        if (event.getClickedInventory() != event.getView().getTopInventory()) {
+            return;
+        }
         if (clicked.getType() == Material.RED_BED) {
             gameService.leaveBrawl(player);
             player.closeInventory();

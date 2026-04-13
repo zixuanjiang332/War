@@ -55,8 +55,10 @@ public final class PlayerDataRepository {
     }
 
     public boolean upsert(PlayerData data) {
-        String sql = "INSERT INTO war_data (uuid, name, kills, deaths) VALUES (?, ?, ?, ?) "
-                + "ON DUPLICATE KEY UPDATE name = VALUES(name), kills = VALUES(kills), deaths = VALUES(deaths)";
+        String sql = "INSERT INTO war_data (uuid, name, kills, deaths, created_at, updated_at) "
+                + "VALUES (?, ?, ?, ?, NOW(), NOW()) "
+                + "ON DUPLICATE KEY UPDATE name = VALUES(name), kills = VALUES(kills), "
+                + "deaths = VALUES(deaths), updated_at = NOW()";
         if (!databaseManager.isAvailable()) {
             return false;
         }
@@ -76,7 +78,7 @@ public final class PlayerDataRepository {
     }
 
     public boolean updateName(UUID uuid, String name) {
-        String sql = "UPDATE war_data SET name = ? WHERE uuid = ?";
+        String sql = "UPDATE war_data SET name = ?, updated_at = NOW() WHERE uuid = ?";
         if (!databaseManager.isAvailable()) {
             return false;
         }

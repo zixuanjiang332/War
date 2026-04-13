@@ -18,7 +18,7 @@ public final class BrawlMenuGUI {
     }
 
     public static void open(Player player) {
-        Inventory inventory = Bukkit.createInventory(null, 9, Component.text(TITLE).color(NamedTextColor.BLUE).decorate(TextDecoration.BOLD));
+        Inventory inventory = Bukkit.createInventory(new BrawlMenuHolder(), 9, Component.text(TITLE).color(NamedTextColor.BLUE).decorate(TextDecoration.BOLD));
         ItemStack joinItem = new ItemStack(Material.DIAMOND_SWORD);
         ItemMeta meta = joinItem.getItemMeta();
         meta.displayName(Component.text("进入战场").color(NamedTextColor.YELLOW).decorate(TextDecoration.BOLD));
