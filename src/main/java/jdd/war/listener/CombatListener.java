@@ -30,7 +30,15 @@ public final class CombatListener implements Listener {
 
     @EventHandler
     public void onMove(PlayerMoveEvent event) {
-        if (gameService.isParticipant(event.getPlayer())) {
+        if (event.getTo() == null || !gameService.isParticipant(event.getPlayer())) {
+            return;
+        }
+        if (event.getFrom().getBlockX() == event.getTo().getBlockX()
+                && event.getFrom().getBlockY() == event.getTo().getBlockY()
+                && event.getFrom().getBlockZ() == event.getTo().getBlockZ()) {
+            return;
+        }
+        if (gameService.updateSafeZoneTracking(event.getPlayer()) && gameService.isInSafeZone(event.getPlayer())) {
             gameService.armFallProtection(event.getPlayer());
         }
     }

@@ -1,6 +1,12 @@
 BrawlMap1:
   id: BrawlMap1
-  spawn-location: [ 0.5, 100.0, 0.5 ]
+  spawn-location: [ 0.0, 101.0, 0.0 ]
 BrawlMap2:
   id: BrawlMap2
-  spawn-location: [ 10.5, 64.0, -10.5 ]
+  spawn-location: [ 0.0, 101.0, 0.0 ]
+BrawlMap3:
+  id: BrawlMap3
+  spawn-location: [ 0.0, 101.0, 0.0 ]
+BrawlMap4:
+    id: BrawlMap4
+    spawn-location: [ 0.0, 101.0, 0.0 ]

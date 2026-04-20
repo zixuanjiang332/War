@@ -10,6 +10,8 @@ public final class PlayerSession {
     private PlayerState state = PlayerState.LOBBY;
     private HeroClass selectedHero;
     private boolean fallProtectionArmed;
+    private boolean lastSafeZoneState;
+    private boolean safeZoneStateKnown;
     private final Map<String, Long> cooldowns = new HashMap<>();
 
     public PlayerSession(UUID playerId) {
@@ -50,12 +52,28 @@ public final class PlayerSession {
         return value;
     }
 
+    public boolean updateSafeZoneState(boolean inSafeZone) {
+        boolean changed = !safeZoneStateKnown || lastSafeZoneState != inSafeZone;
+        lastSafeZoneState = inSafeZone;
+        safeZoneStateKnown = true;
+        return changed;
+    }
+
+    public void clearSafeZoneState() {
+        safeZoneStateKnown = false;
+        lastSafeZoneState = false;
+    }
+
     public void setCooldown(String key, long expiresAt) {
         cooldowns.put(key, expiresAt);
     }
 
     public long getCooldown(String key) {
         return cooldowns.getOrDefault(key, 0L);
+    }
+
+    public void clearCooldown(String key) {
+        cooldowns.remove(key);
     }
 
     public void clearCooldowns() {

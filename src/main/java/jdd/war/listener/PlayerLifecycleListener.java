@@ -28,6 +28,7 @@ public final class PlayerLifecycleListener implements Listener {
 
     @EventHandler
     public void onJoin(PlayerJoinEvent event) {
+        event.joinMessage(null);
         Player player = event.getPlayer();
         playerDataService.loadPlayerAsync(player);
         scoreboardManager.setupBoard(player);
@@ -36,17 +37,18 @@ public final class PlayerLifecycleListener implements Listener {
         Bukkit.getScheduler().runTaskLater(plugin, () -> {
             if (player.isOnline()) {
                 jdd.war.gui.BrawlMenuGUI.open(player);
-                gameService.refreshAllUi();
+                gameService.handlePlayerJoined(player);
             }
         }, 5L);
     }
 
     @EventHandler
     public void onQuit(PlayerQuitEvent event) {
+        event.quitMessage(null);
         Player player = event.getPlayer();
         gameService.handleQuit(player);
         playerDataService.unloadPlayer(player);
-        Bukkit.getScheduler().runTask(plugin, gameService::refreshAllUi);
+        Bukkit.getScheduler().runTask(plugin, () -> gameService.handlePlayerLeft(player));
     }
 
     @EventHandler
@@ -56,6 +58,6 @@ public final class PlayerLifecycleListener implements Listener {
 
     @EventHandler
     public void onChangedWorld(PlayerChangedWorldEvent event) {
-        gameService.refreshAllUi();
+        gameService.refreshScoreboard(event.getPlayer());
     }
 }

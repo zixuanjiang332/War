@@ -32,8 +32,16 @@ public final class HeroItems {
         return named(material, 1, name, List.of());
     }
 
+    public static ItemStack named(Material material, String name, List<String> lore) {
+        return named(material, 1, name, lore);
+    }
+
     public static ItemStack named(Material material, int amount, String name, List<String> lore) {
         ItemStack item = new ItemStack(material, amount);
+        return describe(item, name, lore);
+    }
+
+    public static ItemStack describe(ItemStack item, String name, List<String> lore) {
         ItemMeta meta = item.getItemMeta();
         meta.displayName(Component.text(name).decoration(TextDecoration.ITALIC, false));
         if (!lore.isEmpty()) {

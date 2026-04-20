@@ -2,8 +2,8 @@ mysql:
   host: "localhost"
   port: 3306
   database: "war"
-  username: "nightmare"
-  password: "1054874739"
+  username: "duels"
+  password: "123456"
 lobby-settings:
     # Whether players are invulnerable while in the lobby.
     invulnerable-in-lobby: true

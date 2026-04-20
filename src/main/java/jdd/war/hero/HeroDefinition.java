@@ -17,5 +17,13 @@ public interface HeroDefinition {
 
     List<HeroSkillBinding> getSkillBindings();
 
+    default HeroTier getTier() {
+        List<String> description = getDescription();
+        if (description.isEmpty()) {
+            return HeroTier.TIER_1;
+        }
+        return HeroTier.fromDisplayName(description.get(0));
+    }
+
     void apply(Player player);
 }

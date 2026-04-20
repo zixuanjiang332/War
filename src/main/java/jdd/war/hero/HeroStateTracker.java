@@ -4,6 +4,7 @@ import java.util.ArrayList;
 import java.util.Collection;
 import java.util.List;
 import java.util.Map;
+import java.util.Set;
 import java.util.UUID;
 import java.util.concurrent.ConcurrentHashMap;
 import jdd.war.War;
@@ -16,6 +17,7 @@ import org.bukkit.entity.Entity;
 import org.bukkit.entity.LivingEntity;
 import org.bukkit.entity.Player;
 import org.bukkit.entity.Projectile;
+import org.bukkit.inventory.ItemStack;
 import org.bukkit.metadata.FixedMetadataValue;
 import org.bukkit.scheduler.BukkitTask;
 
@@ -27,6 +29,11 @@ public final class HeroStateTracker {
     private final Map<UUID, BukkitTask> prismTasks = new ConcurrentHashMap<>();
     private final Map<UUID, TimeAnchorState> timeAnchors = new ConcurrentHashMap<>();
     private final Map<String, BukkitTask> cooldownReadyTasks = new ConcurrentHashMap<>();
+    private final Map<UUID, VampireBloodlustState> vampireBloodlust = new ConcurrentHashMap<>();
+    private final Map<UUID, ThugChargeState> thugCharges = new ConcurrentHashMap<>();
+    private final Map<UUID, BukkitTask> poisonStingTasks = new ConcurrentHashMap<>();
+    private final Map<UUID, RobotBorrowedSkillState> robotBorrowedSkills = new ConcurrentHashMap<>();
+    private final Set<UUID> spatialPearlImmunity = ConcurrentHashMap.newKeySet();
 
     public HeroStateTracker(War plugin) {
         this.plugin = plugin;
@@ -38,6 +45,10 @@ public final class HeroStateTracker {
 
     public ProjectileSkill consumeProjectileSkill(UUID projectileId) {
         return projectileSkills.remove(projectileId);
+    }
+
+    public ProjectileSkill getProjectileSkill(UUID projectileId) {
+        return projectileSkills.get(projectileId);
     }
 
     public void startFlight(Player player, long durationTicks) {
@@ -63,6 +74,10 @@ public final class HeroStateTracker {
         prismTasks.put(player.getUniqueId(), task);
     }
 
+    public boolean hasPrism(Player player) {
+        return prismTasks.containsKey(player.getUniqueId());
+    }
+
     public boolean consumePrism(Player player) {
         BukkitTask task = prismTasks.remove(player.getUniqueId());
         if (task == null) {
@@ -70,10 +85,6 @@ public final class HeroStateTracker {
         }
         task.cancel();
         return true;
-    }
-
-    public boolean hasPrism(Player player) {
-        return prismTasks.containsKey(player.getUniqueId());
     }
 
     public void clearPrism(Player player) {
@@ -141,7 +152,6 @@ public final class HeroStateTracker {
         }, durationTicks);
         cooldownReadyTasks.put(taskKey, task);
     }
-
     public void clearCooldownReadyTasks(Player player) {
         String prefix = player.getUniqueId() + ":";
         cooldownReadyTasks.entrySet().removeIf(entry -> {
@@ -153,12 +163,95 @@ public final class HeroStateTracker {
         });
     }
 
+    public void clearCooldownReadyTask(Player player, String cooldownKey) {
+        BukkitTask task = cooldownReadyTasks.remove(player.getUniqueId() + ":" + cooldownKey);
+        if (task != null) {
+            task.cancel();
+        }
+    }
+
+    public void activateVampireBloodlust(Player player, int slot, ItemStack originalWeapon, long durationTicks, Runnable onExpire) {
+        clearVampireBloodlust(player);
+        BukkitTask task = Bukkit.getScheduler().runTaskLater(plugin, onExpire, durationTicks);
+        vampireBloodlust.put(player.getUniqueId(), new VampireBloodlustState(slot, originalWeapon.clone(), task));
+    }
+
+    public boolean hasVampireBloodlust(Player player) {
+        return vampireBloodlust.containsKey(player.getUniqueId());
+    }
+
+    public VampireBloodlustState getVampireBloodlust(Player player) {
+        return vampireBloodlust.get(player.getUniqueId());
+    }
+
+    public void clearVampireBloodlust(Player player) {
+        VampireBloodlustState state = vampireBloodlust.remove(player.getUniqueId());
+        if (state != null) {
+            state.task().cancel();
+        }
+    }
+
+    public void setThugChargeState(Player player, int slot, ItemStack originalWeapon, int stacks, int empoweredHits) {
+        thugCharges.put(player.getUniqueId(), new ThugChargeState(slot, originalWeapon.clone(), stacks, empoweredHits));
+    }
+
+    public ThugChargeState getThugChargeState(Player player) {
+        return thugCharges.get(player.getUniqueId());
+    }
+
+    public void clearThugChargeState(Player player) {
+        thugCharges.remove(player.getUniqueId());
+    }
+
+    public void activatePoisonSting(Player player, long durationTicks) {
+        clearPoisonSting(player);
+        BukkitTask task = Bukkit.getScheduler().runTaskLater(plugin, () -> poisonStingTasks.remove(player.getUniqueId()), durationTicks);
+        poisonStingTasks.put(player.getUniqueId(), task);
+    }
+
+    public boolean hasPoisonSting(Player player) {
+        return poisonStingTasks.containsKey(player.getUniqueId());
+    }
+
+    public void clearPoisonSting(Player player) {
+        BukkitTask task = poisonStingTasks.remove(player.getUniqueId());
+        if (task != null) {
+            task.cancel();
+        }
+    }
+
+    public void setRobotBorrowedSkill(Player player, ItemStack baseItem, HeroClass sourceHero, HeroSkillBinding binding, ItemStack borrowedItem) {
+        robotBorrowedSkills.put(player.getUniqueId(),
+                new RobotBorrowedSkillState(baseItem.clone(), sourceHero, binding, borrowedItem.clone()));
+    }
+
+    public RobotBorrowedSkillState getRobotBorrowedSkill(Player player) {
+        return robotBorrowedSkills.get(player.getUniqueId());
+    }
+
+    public void clearRobotBorrowedSkill(Player player) {
+        robotBorrowedSkills.remove(player.getUniqueId());
+    }
+
+    public void armSpatialPearlImmunity(Player player) {
+        spatialPearlImmunity.add(player.getUniqueId());
+    }
+
+    public boolean consumeSpatialPearlImmunity(Player player) {
+        return spatialPearlImmunity.remove(player.getUniqueId());
+    }
+
     public void clearPlayerState(Player player) {
         clearFlight(player);
         clearPrism(player);
         clearTimeAnchor(player);
         clearSummons(player);
         clearCooldownReadyTasks(player);
+        clearVampireBloodlust(player);
+        clearThugChargeState(player);
+        clearPoisonSting(player);
+        clearRobotBorrowedSkill(player);
+        spatialPearlImmunity.remove(player.getUniqueId());
         projectileSkills.entrySet().removeIf(entry -> {
             Entity entity = Bukkit.getEntity(entry.getKey());
             return entity == null || (entity instanceof Projectile projectile && projectile.getShooter() == player);
@@ -167,9 +260,22 @@ public final class HeroStateTracker {
 
     public enum ProjectileSkill {
         MAGE_SWAP,
-        CLAW_WEB
+        CLAW_WEB,
+        SPATIAL_PEARL,
+        DRAGON_KNIGHT_FIREBALL,
+        ARTILLERIST_SHELL
+    }
+
+    public record VampireBloodlustState(int slot, ItemStack originalWeapon, BukkitTask task) {
+    }
+
+    public record ThugChargeState(int slot, ItemStack originalWeapon, int stacks, int empoweredHits) {
+    }
+
+    public record RobotBorrowedSkillState(ItemStack baseItem, HeroClass sourceHero, HeroSkillBinding binding, ItemStack borrowedItem) {
     }
 
     private record TimeAnchorState(Location location, BukkitTask task) {
     }
 }
+

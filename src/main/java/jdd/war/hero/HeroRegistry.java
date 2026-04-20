@@ -9,6 +9,7 @@ import java.util.List;
 import java.util.Map;
 import java.util.Optional;
 import java.util.Set;
+import jdd.war.hero.definitions.ExpansionHeroDefinitions;
 import jdd.war.hero.definitions.MechanicHeroDefinitions;
 import jdd.war.hero.definitions.PowerHeroDefinitions;
 import jdd.war.hero.definitions.SkirmisherHeroDefinitions;
@@ -23,6 +24,7 @@ public final class HeroRegistry {
         HeroRegistryBuilder builder = new HeroRegistryBuilder();
         List<HeroDefinitionGroup> groups = List.of(
                 new StarterHeroDefinitions(),
+                new ExpansionHeroDefinitions(),
                 new SkirmisherHeroDefinitions(),
                 new PowerHeroDefinitions(),
                 new SpecialHeroDefinitions(),
@@ -48,6 +50,12 @@ public final class HeroRegistry {
         List<HeroDefinition> list = new ArrayList<>(heroes.values());
         list.sort(Comparator.comparingInt(HeroDefinition::getMenuSlot));
         return list;
+    }
+
+    public List<HeroDefinition> getAllByTier(HeroTier tier) {
+        return getAll().stream()
+                .filter(hero -> hero.getTier() == tier)
+                .toList();
     }
 
     public Optional<HeroClass> findByMenuSlot(int slot) {

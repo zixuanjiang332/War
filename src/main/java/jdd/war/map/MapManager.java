@@ -18,6 +18,7 @@ import java.util.List;
 import java.util.Set;
 import jdd.war.War;
 import jdd.war.bootstrap.PluginConfigManager;
+import jdd.war.data.PlayerDataService;
 import jdd.war.game.GameService;
 import org.bukkit.Bukkit;
 import org.bukkit.GameRule;
@@ -30,6 +31,8 @@ import org.bukkit.scheduler.BukkitTask;
 
 public final class MapManager {
     private static final long ROTATION_INTERVAL_MILLIS = 30L * 60L * 1000L;
+    private static final long LEADERBOARD_REFRESH_TICKS = 10L * 60L * 20L;
+    private static final long SCOREBOARD_REFRESH_STEP_MILLIS = 5_000L;
     private static final List<RotationWarning> WARNINGS = List.of(
             new RotationWarning(15L * 60L * 1000L, "15 分钟", false),
             new RotationWarning(10L * 60L * 1000L, "10 分钟", false),
@@ -42,6 +45,7 @@ public final class MapManager {
     private final MapConfig mapConfig;
     private final List<String> mapPool;
     private final Set<Long> sentWarnings = new HashSet<>();
+    private final SpawnLeaderboardManager spawnLeaderboardManager;
 
     private int currentMapIndex;
     private long nextRotationAt;
@@ -50,12 +54,15 @@ public final class MapManager {
     private Path activeWorldFolder;
     private GameService gameService;
     private BukkitTask rotationTicker;
+    private BukkitTask leaderboardTicker;
+    private long lastScoreboardRefreshBucket = Long.MIN_VALUE;
 
-    public MapManager(War plugin, PluginConfigManager pluginConfigManager) {
+    public MapManager(War plugin, PluginConfigManager pluginConfigManager, PlayerDataService playerDataService) {
         this.plugin = plugin;
         this.pluginConfigManager = pluginConfigManager;
         this.mapConfig = new MapConfig(plugin);
         this.mapPool = new ArrayList<>(mapConfig.getAvailableMaps());
+        this.spawnLeaderboardManager = new SpawnLeaderboardManager(playerDataService);
     }
 
     public void setGameService(GameService gameService) {
@@ -70,6 +77,12 @@ public final class MapManager {
 
         rotateMap();
         rotationTicker = Bukkit.getScheduler().runTaskTimer(plugin, this::tickRotation, 20L, 20L);
+        leaderboardTicker = Bukkit.getScheduler().runTaskTimer(
+                plugin,
+                this::refreshSpawnLeaderboards,
+                LEADERBOARD_REFRESH_TICKS,
+                LEADERBOARD_REFRESH_TICKS
+        );
     }
 
     public void rotateMap() {
@@ -93,12 +106,14 @@ public final class MapManager {
         currentMapIndex = (currentMapIndex + 1) % mapPool.size();
         nextRotationAt = System.currentTimeMillis() + ROTATION_INTERVAL_MILLIS;
         sentWarnings.clear();
+        lastScoreboardRefreshBucket = Long.MIN_VALUE;
 
         if (gameService != null && !participants.isEmpty()) {
             gameService.moveParticipantsToNewMap(participants, nextMapName);
         }
 
         unloadAndCleanWorld(previousWorld, previousFolder);
+        refreshSpawnLeaderboards();
         announceRotationComplete(nextMapName);
 
         if (gameService != null) {
@@ -141,10 +156,18 @@ public final class MapManager {
         if (rotationTicker != null) {
             rotationTicker.cancel();
         }
+        if (leaderboardTicker != null) {
+            leaderboardTicker.cancel();
+        }
+        spawnLeaderboardManager.clear();
         unloadAndCleanWorld(activeWorld, activeWorldFolder);
         activeWorld = null;
         activeWorldFolder = null;
         activeMapName = null;
+    }
+
+    public void refreshSpawnLeaderboards() {
+        spawnLeaderboardManager.refresh(activeWorld, getSpawnLocation());
     }
 
     private void tickRotation() {
@@ -164,7 +187,9 @@ public final class MapManager {
             return;
         }
 
-        if (gameService != null) {
+        long refreshBucket = remaining / SCOREBOARD_REFRESH_STEP_MILLIS;
+        if (gameService != null && refreshBucket != lastScoreboardRefreshBucket) {
+            lastScoreboardRefreshBucket = refreshBucket;
             gameService.refreshAllScoreboards();
         }
     }
@@ -216,6 +241,7 @@ public final class MapManager {
     }
 
     private void unloadAndCleanWorld(World world, Path folder) {
+        spawnLeaderboardManager.clear();
         if (world != null) {
             for (Player player : new ArrayList<>(world.getPlayers())) {
                 player.teleport(pluginConfigManager.getLobbyLocation());
